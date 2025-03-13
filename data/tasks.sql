@@ -25,7 +25,7 @@ SET time_zone = "+00:00";
 
 --
 -- Structure de la table `tasks`
---
+-- 
 
 CREATE TABLE `tasks` (
   `id` varchar(11) NOT NULL,

@@ -19,8 +19,8 @@ router.get('/tasks-by-owner/:ownerId', async (req, res) => {
            SELECT 
             t.id, t.title, t.date_debut, t.date_fin, t.statut, t.priorite,
             c.company_name AS company,
-            IFNULL(GROUP_CONCAT(DISTINCT cat.name), '') AS categories,
-            IFNULL(GROUP_CONCAT(DISTINCT i.name), '') AS intervenants
+            IFNULL(GROUP_CONCAT(DISTINCT cat.name), '[]') AS categories,
+            IFNULL(GROUP_CONCAT(DISTINCT i.name), '[]') AS intervenants
         FROM tasks t
         JOIN clients c ON t.company = c.id
         LEFT JOIN task_categories tc ON t.id = tc.task_id
@@ -186,19 +186,32 @@ router.get('/intervenant/:id', async (req, res) => {
 });
 
 // Modifier une tâche
-router.put('/:id', async (req, res) => {
-  const taskId = req.params.id;
-  const { title, categories, Priorité, intervenants, company, date_debut, date_fin, statut } = req.body;
-  try {
-      await db.query(
-          'UPDATE tasks SET title = ?, categories = ?, Priorité = ?, intervenants = ?, company = ?, date_debut = ?, date_fin = ?, statut = ? WHERE id = ?',
-          [title, categories, Priorité, intervenants, company, date_debut, date_fin, statut, taskId]
-      );
-      res.json({ message: 'Tâche mise à jour avec succès' });
-  } catch (error) {
-      res.status(500).json({ error: 'Erreur lors de la mise à jour de la tâche' });
-  }
+router.put('/updatestatus/:id', async (req, res) => { 
+    const taskId = req.params.id;
+    const { statut } = req.body;
+
+    if (!taskId || !statut) {
+        return res.status(400).json({ error: 'ID et statut sont requis' });
+    }
+
+    try {
+        const [result] = await db.query(
+            'UPDATE tasks SET statut = ? WHERE id = ?',
+            [statut, taskId]
+        );
+
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ error: 'Tâche non trouvée' });
+        }
+
+        res.json({ message: 'Statut mis à jour avec succès', id: taskId, statut });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Erreur lors de la mise à jour du statut' });
+    }
 });
+
+
 
 // Supprimer une tâche
 router.delete('/:id', async (req, res) => {
