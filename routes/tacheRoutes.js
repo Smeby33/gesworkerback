@@ -186,30 +186,158 @@ router.get('/intervenant/:id', async (req, res) => {
 });
 
 // Modifier une tâche
-router.put('/updatestatus/:id', async (req, res) => { 
+// router.put('/updatestatus/:id', async (req, res) => { 
+//     const taskId = req.params.id;
+//     const { statut } = req.body;
+
+//     if (!taskId || !statut) {
+//         return res.status(400).json({ error: 'ID et statut sont requis' });
+//     }
+
+//     try {
+//         const [result] = await db.query(
+//             'UPDATE tasks SET statut = ? WHERE id = ?',
+//             [statut, taskId]
+//         );
+
+//         if (result.affectedRows === 0) {
+//             return res.status(404).json({ error: 'Tâche non trouvée' });
+//         }
+
+//         res.json({ message: 'Statut mis à jour avec succès', id: taskId, statut });
+//     } catch (error) {
+//         console.error(error);
+//         res.status(500).json({ error: 'Erreur lors de la mise à jour du statut' });
+//     }
+// });
+// router.put('/updatestatus/:id', async (req, res) => {
+//     const taskId = req.params.id;
+//     const { statut, categories } = req.body;
+
+//     if (!taskId || !statut) {
+//         return res.status(400).json({ error: 'ID et statut sont requis' });
+//     }
+
+//     const connection = await db.getConnection(); // Obtenir une connexion depuis le pool
+//     try {
+//         await connection.beginTransaction(); // Début de la transaction
+
+//         // 1. Mise à jour du statut de la tâche
+//         const [result] = await connection.execute(
+//             'UPDATE tasks SET statut = ? WHERE id = ?',
+//             [statut, taskId]
+//         );
+
+//         if (result.affectedRows === 0) {
+//             await connection.rollback();
+//             return res.status(404).json({ error: 'Tâche non trouvée' });
+//         }
+
+//         // 2. Mise à jour des sous-statuts des catégories si la liste est fournie
+//         if (categories && Array.isArray(categories)) {
+//             for (const { category_id, sous_statut } of categories) {
+//                 await connection.execute(
+//                     'UPDATE task_categories SET sous_statut = ? WHERE task_id = ? AND category_id = ?',
+//                     [sous_statut, taskId, category_id]
+//                 );
+//             }
+//         }
+
+//         await connection.commit(); // Valider la transaction
+//         res.json({ message: 'Mise à jour réussie', id: taskId, statut, categories });
+//     } catch (error) {
+//         await connection.rollback(); // Annuler les changements en cas d'erreur
+//         console.error(error);
+//         res.status(500).json({ error: 'Erreur lors de la mise à jour' });
+//     } finally {
+//         connection.release(); // Libérer la connexion
+//     }
+// });
+
+router.put('/updatestatus/:id', async (req, res) => {
     const taskId = req.params.id;
-    const { statut } = req.body;
+    const { statut, categories } = req.body;
+    console.log('Body reçu:', req.body);
+    console.log('Paramètre ID:', req.params.id);
 
     if (!taskId || !statut) {
         return res.status(400).json({ error: 'ID et statut sont requis' });
     }
 
+    const connection = await db.getConnection();
     try {
-        const [result] = await db.query(
+        await connection.beginTransaction();
+
+        // Mise à jour du statut de la tâche
+        const [result] = await connection.execute(
             'UPDATE tasks SET statut = ? WHERE id = ?',
             [statut, taskId]
         );
 
         if (result.affectedRows === 0) {
+            await connection.rollback();
             return res.status(404).json({ error: 'Tâche non trouvée' });
         }
 
-        res.json({ message: 'Statut mis à jour avec succès', id: taskId, statut });
+        // Vérifier et récupérer les ID des catégories
+        if (categories && Array.isArray(categories) && categories.length > 0) {
+            const categoryNames = categories.map(cat => cat.name);
+            const placeholders = categoryNames.map(() => '?').join(','); // éviter IN (?)
+            
+            const [categoryRows] = await connection.execute(
+                `SELECT id, name FROM categories WHERE name IN (${placeholders})`,
+                categoryNames
+            );
+
+            if (categoryRows.length === 0) {
+                await connection.rollback();
+                return res.status(400).json({ error: 'Aucune catégorie trouvée' });
+            }
+
+            // Associer chaque catégorie à son ID
+            const categoryMap = {};
+            categoryRows.forEach(row => {
+                categoryMap[row.name] = row.id;
+            });
+
+            // Identifier les catégories non trouvées
+            const notFoundCategories = categoryNames.filter(name => !categoryMap[name]);
+            if (notFoundCategories.length > 0) {
+                console.warn(`⚠️ Catégories non trouvées: ${notFoundCategories.join(', ')}`);
+            }
+
+            // Mise à jour des sous-statuts des catégories
+            for (const category of categories) {
+                const categoryId = categoryMap[category.name];
+                if (!categoryId) {
+                    console.warn(`⛔ Catégorie ignorée : ${category.name} (ID introuvable)`);
+                    continue;
+                }
+
+                console.log(`✅ Mise à jour de la catégorie ${category.name} (ID: ${categoryId}) avec sous-statut ${category.sousStatut} pour la tâche ${taskId}`);
+
+                const [updateCategoryResult] = await connection.execute(
+                    'UPDATE task_categories SET sous_statut = ? WHERE task_id = ? AND category_id = ?',
+                    [category.sousStatut, taskId, categoryId]
+                );
+
+                console.log("Résultat de la mise à jour :", updateCategoryResult);
+            }
+        }
+
+        await connection.commit();
+        res.json({ message: 'Mise à jour réussie', id: taskId, statut, categories });
     } catch (error) {
+        await connection.rollback();
         console.error(error);
-        res.status(500).json({ error: 'Erreur lors de la mise à jour du statut' });
+        res.status(500).json({ error: 'Erreur lors de la mise à jour' });
+    } finally {
+        connection.release();
     }
 });
+
+
+
 
 
 
