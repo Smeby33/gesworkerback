@@ -176,83 +176,130 @@ router.get('/:id', async (req, res) => {
 
 // Récupérer toutes les tâches d'un intervenant spécifique
 router.get('/intervenant/:id', async (req, res) => {
-  const intervenantId = req.params.id;
-  try {
-      const [tasks] = await db.query('SELECT * FROM tasks WHERE intervenants = ?', [intervenantId]);
-      res.json(tasks);
-  } catch (error) {
-      res.status(500).json({ error: 'Erreur lors de la récupération des tâches' });
-  }
+    const intervenantId = req.params.id;
+    
+    try {
+      // 1. Vérifier que l'intervenant existe
+      const [intervenant] = await db.query('SELECT id FROM intervenant WHERE id = ?', [intervenantId]);
+      if (intervenant.length === 0) {
+        return res.status(404).json({ error: 'Intervenant non trouvé' });
+      }
+  
+      // 2. Récupérer les tâches avec toutes les informations nécessaires
+      const [tasks] = await db.query(`
+        SELECT 
+          t.id, 
+          t.title, 
+          c.company_name AS company,
+          p.Type AS priorite,
+          t.date_debut,
+          t.date_fin,
+          t.statut,
+          t.timestamp,
+          GROUP_CONCAT(DISTINCT cat.name SEPARATOR ', ') AS categories,
+          GROUP_CONCAT(DISTINCT i.name SEPARATOR ', ') AS intervenants
+        FROM tasks t
+        JOIN clients c ON t.company = c.id
+        JOIN priorité p ON t.priorite = p.id
+        JOIN task_categories tc ON t.id = tc.task_id
+        JOIN categories cat ON tc.category_id = cat.id
+        JOIN task_intervenants ti ON t.id = ti.task_id
+        JOIN intervenant i ON ti.intervenant_id = i.id
+        WHERE ti.intervenant_id = ?
+        GROUP BY t.id
+        ORDER BY t.date_debut ASC
+      `, [intervenantId]);
+  
+      // 3. Formater les dates pour le front-end
+      const formattedTasks = tasks.map(task => ({
+        ...task,
+        date_debut: moment(task.date_debut).format('YYYY-MM-DDTHH:mm'),
+        date_fin: moment(task.date_fin).format('YYYY-MM-DDTHH:mm'),
+        categories: task.categories ? task.categories.split(', ') : [],
+        intervenants: task.intervenants ? task.intervenants.split(', ') : []
+      }));
+  
+      res.json(formattedTasks);
+      
+    } catch (error) {
+      console.error('Erreur:', error);
+      res.status(500).json({ 
+        error: 'Erreur lors de la récupération des tâches',
+        details: error.message
+      });
+    }
+  });
+
+  // Récupérer toutes les tâches d'un intervenant spécifique et ses intervenants
+  router.get('/intervenantinters/:id', async (req, res) => {
+    const intervenantId = req.params.id;
+
+    try {
+        // 1. Vérifier que l'intervenant existe (inchangé)
+        const [intervenant] = await db.query('SELECT id FROM intervenant WHERE id = ?', [intervenantId]);
+        if (intervenant.length === 0) {
+            return res.status(404).json({ error: 'Intervenant non trouvé' });
+        }
+
+        // 2. Récupérer les tâches avec toutes les informations nécessaires (requête modifiée)
+        const [tasks] = await db.query(`
+            SELECT
+                t.id,
+                t.title,
+                c.company_name AS company,
+                p.Type AS priorite,
+                t.date_debut,
+                t.date_fin,
+                t.statut,
+                t.timestamp,
+                GROUP_CONCAT(DISTINCT cat.name SEPARATOR ', ') AS categories,
+                (
+                    SELECT
+                        GROUP_CONCAT(DISTINCT i2.name SEPARATOR ', ')
+                    FROM
+                        task_intervenants ti2
+                    JOIN
+                        intervenant i2 ON ti2.intervenant_id = i2.id
+                    WHERE
+                        ti2.task_id = t.id
+                ) AS all_intervenants
+            FROM
+                tasks t
+            JOIN
+                clients c ON t.company = c.id
+            JOIN
+                priorité p ON t.priorite = p.id
+            JOIN
+                task_categories tc ON t.id = tc.task_id
+            JOIN
+                categories cat ON tc.category_id = cat.id
+            WHERE
+                t.id IN (SELECT task_id FROM task_intervenants WHERE intervenant_id = ?)
+            GROUP BY
+                t.id
+            ORDER BY
+                t.date_debut ASC;
+        `, [intervenantId]);
+
+        // 3. Formater les dates et les intervenants pour le front-end (légèrement modifié)
+        const formattedTasks = tasks.map(task => ({
+            ...task,
+            date_debut: moment(task.date_debut).format('YYYY-MM-DDTHH:mm'),
+            date_fin: moment(task.date_fin).format('YYYY-MM-DDTHH:mm'),
+            categories: task.categories ? task.categories.split(', ') : [],
+            intervenants: task.all_intervenants ? task.all_intervenants.split(', ') : [] // Utiliser all_intervenants
+        }));
+
+        res.json(formattedTasks);
+
+    } catch (error) {
+        console.error('Erreur:', error);
+        res.status(500).json({
+            error: 'Erreur lors de la récupération des tâches',
+            details: error.message
+        });
+    }
 });
-
-// Modifier une tâche
-// router.put('/updatestatus/:id', async (req, res) => { 
-//     const taskId = req.params.id;
-//     const { statut } = req.body;
-
-//     if (!taskId || !statut) {
-//         return res.status(400).json({ error: 'ID et statut sont requis' });
-//     }
-
-//     try {
-//         const [result] = await db.query(
-//             'UPDATE tasks SET statut = ? WHERE id = ?',
-//             [statut, taskId]
-//         );
-
-//         if (result.affectedRows === 0) {
-//             return res.status(404).json({ error: 'Tâche non trouvée' });
-//         }
-
-//         res.json({ message: 'Statut mis à jour avec succès', id: taskId, statut });
-//     } catch (error) {
-//         console.error(error);
-//         res.status(500).json({ error: 'Erreur lors de la mise à jour du statut' });
-//     }
-// });
-// router.put('/updatestatus/:id', async (req, res) => {
-//     const taskId = req.params.id;
-//     const { statut, categories } = req.body;
-
-//     if (!taskId || !statut) {
-//         return res.status(400).json({ error: 'ID et statut sont requis' });
-//     }
-
-//     const connection = await db.getConnection(); // Obtenir une connexion depuis le pool
-//     try {
-//         await connection.beginTransaction(); // Début de la transaction
-
-//         // 1. Mise à jour du statut de la tâche
-//         const [result] = await connection.execute(
-//             'UPDATE tasks SET statut = ? WHERE id = ?',
-//             [statut, taskId]
-//         );
-
-//         if (result.affectedRows === 0) {
-//             await connection.rollback();
-//             return res.status(404).json({ error: 'Tâche non trouvée' });
-//         }
-
-//         // 2. Mise à jour des sous-statuts des catégories si la liste est fournie
-//         if (categories && Array.isArray(categories)) {
-//             for (const { category_id, sous_statut } of categories) {
-//                 await connection.execute(
-//                     'UPDATE task_categories SET sous_statut = ? WHERE task_id = ? AND category_id = ?',
-//                     [sous_statut, taskId, category_id]
-//                 );
-//             }
-//         }
-
-//         await connection.commit(); // Valider la transaction
-//         res.json({ message: 'Mise à jour réussie', id: taskId, statut, categories });
-//     } catch (error) {
-//         await connection.rollback(); // Annuler les changements en cas d'erreur
-//         console.error(error);
-//         res.status(500).json({ error: 'Erreur lors de la mise à jour' });
-//     } finally {
-//         connection.release(); // Libérer la connexion
-//     }
-// });
 
 router.put('/updatestatus/:id', async (req, res) => {
     const taskId = req.params.id;

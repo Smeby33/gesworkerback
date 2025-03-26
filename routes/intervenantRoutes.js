@@ -34,7 +34,8 @@ router.get("/recuperertout/:id", async (req, res) => {
     }
 });
 
-  
+
+
 router.post("/ajouterun", async (req, res) => {
   const { id, name, email, phone, role, password, profile_picture, proprietaire } = req.body;
   const timestamp = Date.now();
@@ -146,6 +147,5 @@ router.post("/ajouterun", async (req, res) => {
       res.status(500).json({ error: "Erreur lors de la connexion", details: err });
     }
 });
-
 
 module.exports = router;
