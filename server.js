@@ -12,6 +12,7 @@ const performanceRoutes = require('./routes/performanceRoutes');
 const categorieRoutes = require('./routes/categorieRoutes');
 const priorityRoutes = require('./routes/priorityRoutes');
 const tacheRoutes = require('./routes/tacheRoutes');
+const commentRoutes = require('./routes/CommentRoutes');
 
 dotenv.config();
 app.use((req, res, next) => {
@@ -37,6 +38,7 @@ app.use('/categories', categorieRoutes);
 app.use('/performances', performanceRoutes);
 app.use('/prioritys', priorityRoutes);
 app.use('/taches', tacheRoutes);
+app.use('/comments', commentRoutes);
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {

@@ -23,7 +23,7 @@ router.get('/getUser/:id', async (req, res) => {
     const userId = req.params.id;
     console.log("🔍 Début de la requête pour l'ID :", userId);
 
-    const query = 'SELECT id, username, email,password,company_name, is_admin,profile_picture FROM users WHERE id = ? LIMIT 1';
+    const query = 'SELECT id, name, email,password,company_name, is_admin,profile_picture FROM users WHERE id = ? LIMIT 1';
 
     try {
         // Utilisation de async/await avec pool de connexion
@@ -50,10 +50,10 @@ router.post('/addUser', async (req, res) => {
     console.log("🚀 Requête reçue :", req.body);
 
     try {
-        const { id, username, email, password, is_admin, company_name, profile_picture } = req.body;
+        const { id, name, email, password, is_admin, company_name, profile_picture } = req.body;
 
         // Vérifier si les champs obligatoires sont fournis
-        if (!id || !username || !email) {
+        if (!id || !name || !email) {
             console.log("❌ Erreur - Champs obligatoires manquants");
             return res.status(400).json({ error: "ID, username et email sont requis." });
         }
@@ -70,13 +70,13 @@ router.post('/addUser', async (req, res) => {
 
         // Exécution de la requête SQL
         const query = `
-            INSERT INTO users (id, username, email, password, is_admin, company_name, profile_picture)
+            INSERT INTO users (id, name, email, password, is_admin, company_name, profile_picture)
             VALUES (?, ?, ?, ?, ?, ?, ?)
         `;
 
         const values = [
             id,
-            username,
+            name,
             email,
             hashedPassword, // null si ce n'est pas un admin
             is_admin || 0,
