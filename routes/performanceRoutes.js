@@ -3,42 +3,53 @@ const db = require('../db');
 
 const router = express.Router();
 
-// ✅ Ajouter une performance
 router.post('/add', async (req, res) => {
     try {
-        const { username, total, completed, in_progress, cancelled, progress } = req.body;
+        const { username, total, completed, in_progress, cancelled, progress, proprietaire } = req.body;
 
-        console.log("📥 Données reçues :", req.body); // Debug des données reçues
+        // 1. Vérification de l'intervenant
+        const [user] = await db.query(
+          "SELECT name FROM intervenant WHERE id = ? OR name = ?", 
+          [username, username]
+        );
 
-        // Vérifier si l'intervenant existe
-        const [userExists] = await db.query("SELECT id FROM intervenant WHERE id = ?", [username]);
-
-        console.log("🔍 Résultat de la vérification de l'intervenant :", userExists);
-
-        if (userExists.length === 0) {
-            return res.status(400).json({ error: "L'intervenant spécifié n'existe pas." });
+        if (!user.length) {
+            return res.status(400).json({ error: "Intervenant non trouvé" });
         }
 
-        // Insérer les données dans la table `performance`
-        await db.query(`
-            INSERT INTO performance (username, total, completed, in_progress, cancelled, progress)
-            VALUES (?, ?, ?, ?, ?, ?)
-        `, [username, total, completed, in_progress, cancelled, progress]);
+        const intervenantName = user[0].name;
 
-        console.log("✅ Performance ajoutée avec succès !");
-        res.status(201).json({ message: "Performance ajoutée avec succès." });
+        // 2. Suppression des anciennes performances
+        await db.query(
+          "DELETE FROM performance WHERE username = ?",
+          [intervenantName]
+        );
+
+        // 3. Insertion de la nouvelle performance
+        await db.query(`
+            INSERT INTO performance (username, total, completed, in_progress, cancelled, progress,proprietaire)
+            VALUES (?, ?, ?, ?, ?, ?,?)
+        `, [intervenantName, total, completed, in_progress, cancelled, progress,proprietaire]);
+
+        res.status(201).json({ 
+          message: "Performance mise à jour avec succès",
+          replaced: true // Indique qu'un remplacement a eu lieu
+        });
 
     } catch (error) {
-        console.error("❌ Erreur MySQL :", error);
-        res.status(500).json({ error: "Erreur lors de l'ajout de la performance", details: error.sqlMessage });
+        console.error("Erreur:", error);
+        res.status(500).json({ 
+          error: "Erreur serveur", 
+          details: error.sqlMessage || error.message 
+        });
     }
 });
 
-
 // ✅ Récupérer toutes les performances
-router.get('/all', async (req, res) => {
+router.get('/all/:id', async (req, res) => {
+    const { id } = req.params;
     try {
-        const [performances] = await db.query("SELECT * FROM performance ORDER BY progress DESC");
+        const [performances] = await db.query("SELECT * FROM performance WHERE proprietaire=?",[id]);
 
         if (performances.length === 0) {
             return res.status(404).json({ message: "Aucune performance trouvée." });

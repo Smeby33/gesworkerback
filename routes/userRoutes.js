@@ -94,6 +94,55 @@ router.post('/addUser', async (req, res) => {
         res.status(500).json({ error: "Erreur interne du serveur." });
     }
 });
+
+router.get('/getProfilePicture/:userId', async (req, res) => {
+    const { userId } = req.params;
+
+    if (!userId) {
+        return res.status(400).json({ error: "L'ID utilisateur est requis." });
+    }
+
+    const query = 'SELECT profile_picture FROM users WHERE id = ?';
+
+    try {
+        const [rows] = await db.query(query, [userId]);
+
+        if (rows.length === 0) {
+            return res.status(404).json({ error: "Utilisateur non trouvé." });
+        }
+
+        res.status(200).json({ profilePicture: rows[0].profile_picture });
+    } catch (err) {
+        console.error("❌ Erreur SQL :", err);
+        res.status(500).json({ error: "Une erreur interne est survenue." });
+    }
+});
+
+
+//envoyer la photo de profil 
+router.put('/updateProfilePicture/:userId', async (req, res) => {
+    const { userId } = req.params; // Récupération de l'ID utilisateur depuis l'URL
+    const { profilePicture } = req.body; // Image en base64
+
+    if (!profilePicture) {
+        return res.status(400).json({ error: "L'image est requise." });
+    }
+
+    const query = 'UPDATE users SET profile_picture = ? WHERE id = ?';
+
+    try {
+        const [result] = await db.query(query, [profilePicture, userId]);
+
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ error: "Utilisateur non trouvé." });
+        }
+
+        res.status(200).json({ message: "Photo de profil mise à jour avec succès." });
+    } catch (err) {
+        console.error("❌ Erreur SQL :", err);
+        res.status(500).json({ error: "Une erreur interne est survenue." });
+    }
+});
 // 📌 Reconnecter un administrateur
 router.post('/reconnectAdmin', async (req, res) => {
     const { email, password } = req.body;

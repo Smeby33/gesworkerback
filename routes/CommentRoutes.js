@@ -3,7 +3,15 @@ const db = require('../db');
 const router = express.Router();
 const { v4: uuidv4 } = require('uuid');
 const moment = require('moment');
-
+const multer = require('multer');
+const upload = multer({ 
+  dest: 'uploads/',
+  limits: {
+    fileSize: 10 * 1024 * 1024 // Limite à 10MB par fichier
+  }
+});
+const fs = require('fs');
+const path = require('path');
 
 /**
  * @route GET /comments/task/:taskId
@@ -128,12 +136,9 @@ router.get('/recupertoutcomment/:taskId', async (req, res) => {
     }
 });
 
-/**
- * @route POST /comments
- * @description Crée un nouveau commentaire
- */
-router.post('/ajouteruncomment', async (req, res) => {
-    const { taskId, authorId, authorType, text } = req.body;
+
+router.post('/ajouteruncomment', upload.array('attachments'), async (req, res) => {
+    const { taskId, authorId, authorType, text, parentId } = req.body; // Notez parentId ici
     const files = req.files || [];
 
     if (!taskId || !authorId || !text) {
@@ -151,14 +156,14 @@ router.post('/ajouteruncomment', async (req, res) => {
             return res.status(404).json({ error: 'Tâche non trouvée' });
         }
 
-        // 2. Créer le commentaire (structure simplifiée)
-        const commentId = uuidv4(); // Générer un UUID
+        // 2. Créer le commentaire
+        const commentId = uuidv4();
         await connection.query(`
-            INSERT INTO comments (id, task_id, author_id, author_type, text)
-            VALUES (?, ?, ?, ?, ?)
-        `, [commentId, taskId, authorId, authorType || 'intervenant', text]);
+            INSERT INTO comments (id, task_id, author_id, author_type, text, parent_id)
+            VALUES (?, ?, ?, ?, ?, ?)
+        `, [commentId, taskId, authorId, authorType || 'intervenant', text, parentId || null]); // Utilisez parentId ici
 
-        // 3. Gérer les pièces jointes
+        // 3. Gérer les pièces jointes (identique à votre code actuel)
         const attachments = [];
         if (files.length > 0) {
             for (const file of files) {
@@ -178,14 +183,15 @@ router.post('/ajouteruncomment', async (req, res) => {
 
         await connection.commit();
 
-        // Retourner la réponse
         res.status(201).json({
             id: commentId,
             task_id: taskId,
             author_id: authorId,
             author_type: authorType || 'intervenant',
             text: text,
-            attachments: attachments
+            parent_id: parentId || null, // Ajoutez ceci dans la réponse
+            attachments: attachments,
+            created_at: new Date().toISOString() // Ajoutez la date de création
         });
 
     } catch (error) {
@@ -294,6 +300,49 @@ router.patch('/epingle/:id', async (req, res) => {
     } catch (error) {
       res.status(500).json({ 
         error: 'Erreur lors de la modification du commentaire',
+        details: error.message
+      });
+    }
+  });
+
+  /**
+ * @route GET /comments/attachments/:id
+ * @description Télécharge un fichier attaché à un commentaire
+ */
+router.get('/attachments/:id', async (req, res) => {
+    try {
+      const fileId = req.params.id;
+      
+      // 1. Récupérer les infos du fichier
+      const [file] = await db.query(`
+        SELECT file_url, file_name, file_type 
+        FROM comment_attachments 
+        WHERE id = ?
+      `, [fileId]);
+  
+      if (!file || file.length === 0) {
+        return res.status(404).json({ error: 'Fichier non trouvé' });
+      }
+  
+      const filePath = path.join(__dirname, '..', file[0].file_url);
+      
+      // 2. Vérifier que le fichier existe physiquement
+      if (!fs.existsSync(filePath)) {
+        return res.status(404).json({ error: 'Fichier introuvable sur le serveur' });
+      }
+  
+      // 3. Envoyer le fichier
+      res.download(filePath, file[0].file_name, (err) => {
+        if (err) {
+          console.error('Erreur lors de l\'envoi du fichier:', err);
+          res.status(500).json({ error: 'Erreur lors du téléchargement' });
+        }
+      });
+  
+    } catch (error) {
+      console.error('Erreur:', error);
+      res.status(500).json({ 
+        error: 'Erreur lors du téléchargement',
         details: error.message
       });
     }

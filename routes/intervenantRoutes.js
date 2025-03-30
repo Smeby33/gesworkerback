@@ -21,7 +21,7 @@ router.get("/recuperertout/:id", async (req, res) => {
   // Récupérer un intervenant par son ID
   router.get("/recupererun/:id", async (req, res) => {
     const { id } = req.params;
-    const sql = "SELECT id, name, email, phone, role, profile_picture, timestamp FROM intervenant WHERE id = ?";
+    const sql = "SELECT id, name, email, phone, role, profile_picture, timestamp,proprietaire FROM intervenant WHERE id = ?";
     
     try {
       const [result] = await db.query(sql, [id]);

@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Hôte : 127.0.0.1
--- Généré le : lun. 24 mars 2025 à 12:44
+-- Généré le : sam. 29 mars 2025 à 22:35
 -- Version du serveur : 10.4.32-MariaDB
 -- Version de PHP : 8.0.30
 
@@ -56,7 +56,7 @@ ALTER TABLE `performance`
 -- AUTO_INCREMENT pour la table `performance`
 --
 ALTER TABLE `performance`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=78;
 
 --
 -- Contraintes pour les tables déchargées
@@ -66,7 +66,7 @@ ALTER TABLE `performance`
 -- Contraintes pour la table `performance`
 --
 ALTER TABLE `performance`
-  ADD CONSTRAINT `performance_ibfk_1` FOREIGN KEY (`username`) REFERENCES `intervenant` (`id`);
+  ADD CONSTRAINT `performance_ibfk_1` FOREIGN KEY (`username`) REFERENCES `intervenant` (`name`);
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
