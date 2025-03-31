@@ -17,8 +17,7 @@ router.get('/user', (req, res) => {
 });
 
 
-// 📌 Recuperer un utilisateur
-// 📌 Récupérer un utilisateur par son ID (varchar)
+//  Récupérer un utilisateur par son ID (varchar)
 router.get('/getUser/:id', async (req, res) => {
     const userId = req.params.id;
     console.log("🔍 Début de la requête pour l'ID :", userId);
@@ -35,9 +34,9 @@ router.get('/getUser/:id', async (req, res) => {
         }
 
         res.status(200).json(results[0]); // Renvoie l'utilisateur trouvé
-        console.log("📤 Réponse envoyée :", results[0]);
+        console.log(" Réponse envoyée :", results[0]);
     } catch (err) {
-        console.error("❌ Erreur SQL :", err);
+        console.error(" Erreur SQL :", err);
         res.status(500).json({ error: "Une erreur interne est survenue." });
     }
 });
@@ -45,7 +44,7 @@ router.get('/getUser/:id', async (req, res) => {
 
 
 
-// 📌 Ajouter un utilisateur
+//  Ajouter un utilisateur
 router.post('/addUser', async (req, res) => {
     console.log("🚀 Requête reçue :", req.body);
 
@@ -102,42 +101,67 @@ router.get('/getProfilePicture/:userId', async (req, res) => {
         return res.status(400).json({ error: "L'ID utilisateur est requis." });
     }
 
-    const query = 'SELECT profile_picture FROM users WHERE id = ?';
-
     try {
-        const [rows] = await db.query(query, [userId]);
+        // Vérification dans les deux tables
+        const [userCheck] = await db.query('SELECT id FROM users WHERE id = ? UNION SELECT id FROM intervenant WHERE id = ?', [userId, userId]);
 
-        if (rows.length === 0) {
-            return res.status(404).json({ error: "Utilisateur non trouvé." });
+        if (userCheck.length === 0) {
+            return res.status(404).json({ error: "Utilisateur non trouvé dans la base de données." });
         }
 
-        res.status(200).json({ profilePicture: rows[0].profile_picture });
+        // Recherche de la photo dans users puis dans intervenant
+        const [userRows] = await db.query('SELECT profile_picture FROM users WHERE id = ?', [userId]);
+        if (userRows.length > 0) {
+            return res.status(200).json({ profilePicture: userRows[0].profile_picture });
+        }
+
+        const [intervenantRows] = await db.query('SELECT profile_picture FROM intervenant WHERE id = ?', [userId]);
+        if (intervenantRows.length > 0) {
+            return res.status(200).json({ profilePicture: intervenantRows[0].profile_picture });
+        }
+
+        // Cas où l'utilisateur existe mais n'a pas de photo
+        return res.status(200).json({ profilePicture: null });
+
     } catch (err) {
         console.error("❌ Erreur SQL :", err);
         res.status(500).json({ error: "Une erreur interne est survenue." });
     }
 });
 
-
-//envoyer la photo de profil 
 router.put('/updateProfilePicture/:userId', async (req, res) => {
-    const { userId } = req.params; // Récupération de l'ID utilisateur depuis l'URL
-    const { profilePicture } = req.body; // Image en base64
+    const { userId } = req.params;
+    const { profilePicture } = req.body;
 
     if (!profilePicture) {
         return res.status(400).json({ error: "L'image est requise." });
     }
 
-    const query = 'UPDATE users SET profile_picture = ? WHERE id = ?';
-
     try {
-        const [result] = await db.query(query, [profilePicture, userId]);
+        // Vérification dans les deux tables
+        const [userCheck] = await db.query('SELECT id FROM users WHERE id = ? UNION SELECT id FROM intervenant WHERE id = ?', [userId, userId]);
 
-        if (result.affectedRows === 0) {
-            return res.status(404).json({ error: "Utilisateur non trouvé." });
+        if (userCheck.length === 0) {
+            return res.status(404).json({ error: "Utilisateur non trouvé dans la base de données." });
         }
 
-        res.status(200).json({ message: "Photo de profil mise à jour avec succès." });
+        // Essai de mise à jour dans users
+        const [userResult] = await db.query('UPDATE users SET profile_picture = ? WHERE id = ?', [profilePicture, userId]);
+        
+        if (userResult.affectedRows > 0) {
+            return res.status(200).json({ message: "Photo de profil mise à jour avec succès dans users." });
+        }
+
+        // Si pas dans users, essai dans intervenant
+        const [intervenantResult] = await db.query('UPDATE intervenant SET profile_picture = ? WHERE id = ?', [profilePicture, userId]);
+        
+        if (intervenantResult.affectedRows > 0) {
+            return res.status(200).json({ message: "Photo de profil mise à jour avec succès dans intervenant." });
+        }
+
+        // Cas où l'utilisateur existe mais n'a pas pu être mis à jour (normalement impossible après la vérification)
+        return res.status(500).json({ error: "Échec de la mise à jour dans les deux tables." });
+
     } catch (err) {
         console.error("❌ Erreur SQL :", err);
         res.status(500).json({ error: "Une erreur interne est survenue." });

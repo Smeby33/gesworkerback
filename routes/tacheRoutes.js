@@ -23,6 +23,7 @@ router.get('/tasks-by-owner/:ownerId', async (req, res) => {
             IFNULL(GROUP_CONCAT(DISTINCT i.name), '[]') AS intervenants
         FROM tasks t
         JOIN clients c ON t.company = c.id
+        JOIN priorité p ON t.priorite = p.id 
         LEFT JOIN task_categories tc ON t.id = tc.task_id
         LEFT JOIN categories cat ON tc.category_id = cat.id
         LEFT JOIN task_intervenants ti ON t.id = ti.task_id
@@ -420,6 +421,80 @@ router.get('/count-tasks/:ownerId', async (req, res) => {
       console.error('Erreur lors du comptage des tâches:', error);
       res.status(500).json({ error: 'Erreur lors du comptage des tâches', details: error.message });
   }
+});
+
+// les modificatios des taches 
+router.put('/update-task/:id', async (req, res) => {
+    const taskId = req.params.id;
+    let { title, company, priorite, categories, intervenants, date_debut, date_fin, statut } = req.body;
+    
+    if (!taskId || !title || !company || !priorite || !categories.length || !intervenants.length || !date_debut || !date_fin || !statut) {
+        return res.status(400).json({ error: 'Tous les champs sont requis' });
+    }
+    
+    const connection = await db.getConnection();
+    try {
+        await connection.beginTransaction();
+
+        // Vérification et conversion des données
+        const [companyData] = await connection.query("SELECT id FROM clients WHERE company_name = ?", [company]);
+        if (companyData.length === 0) {
+            throw new Error("L'entreprise spécifiée n'existe pas");
+        }
+        company = companyData[0].id;
+
+        if (isNaN(priorite)) {
+            const [prioriteData] = await connection.query("SELECT id FROM priorité WHERE Type = ?", [priorite]);
+            if (prioriteData.length === 0) {
+                throw new Error("Priorité invalide");
+            }
+            priorite = prioriteData[0].id;
+        }
+
+        const formattedDateDebut = moment(date_debut, "YYYY-MM-DDTHH:mm").format('YYYY-MM-DD HH:mm:ss');
+        const formattedDateFin = moment(date_fin, "YYYY-MM-DDTHH:mm").format('YYYY-MM-DD HH:mm:ss');
+
+        // Mise à jour de la tâche principale
+        await connection.execute(
+            'UPDATE tasks SET title = ?, company = ?, priorite = ?, date_debut = ?, date_fin = ?, statut = ? WHERE id = ?',
+            [title, company, priorite, formattedDateDebut, formattedDateFin, statut, taskId]
+        );
+
+        // Mise à jour des catégories
+        await connection.execute('DELETE FROM task_categories WHERE task_id = ?', [taskId]);
+        for (const categoryName of categories) {
+            const [categoryResult] = await connection.query("SELECT id FROM categories WHERE name = ?", [categoryName]);
+            if (categoryResult.length === 0) {
+                throw new Error(`Catégorie '${categoryName}' invalide`);
+            }
+            await connection.execute(
+                'INSERT INTO task_categories (task_id, category_id, sous_statut) VALUES (?, ?, ?)',
+                [taskId, categoryResult[0].id, 'En attente']
+            );
+        }
+
+        // Mise à jour des intervenants
+        await connection.execute('DELETE FROM task_intervenants WHERE task_id = ?', [taskId]);
+        for (const intervenantName of intervenants) {
+            const [intervenantResult] = await connection.query("SELECT id FROM intervenant WHERE name = ?", [intervenantName]);
+            if (intervenantResult.length === 0) {
+                throw new Error(`Intervenant '${intervenantName}' invalide`);
+            }
+            await connection.execute(
+                'INSERT INTO task_intervenants (task_id, intervenant_id) VALUES (?, ?)',
+                [taskId, intervenantResult[0].id]
+            );
+        }
+
+        await connection.commit();
+        res.json({ message: 'Tâche mise à jour avec succès', taskId });
+    } catch (error) {
+        await connection.rollback();
+        console.error("Erreur lors de la mise à jour de la tâche:", error);
+        res.status(500).json({ error: 'Erreur lors de la mise à jour de la tâche', details: error.message });
+    } finally {
+        connection.release();
+    }
 });
 
 
