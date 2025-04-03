@@ -70,7 +70,7 @@ router.post('/addUser', async (req, res) => {
         // Exécution de la requête SQL
         const query = `
             INSERT INTO users (id, name, email, password, is_admin, company_name, profile_picture)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, NULL)
         `;
 
         const values = [
