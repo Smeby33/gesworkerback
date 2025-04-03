@@ -22,7 +22,9 @@ app.use((req, res, next) => {
 
 app.use(express.json());
 app.use(cors({
-    origin: [*]
+    origin: ['http://localhost:"3000', 'https://gesworker.vercel.app'],
+    methods:['GET', 'POST', 'PUT', 'DELETE'],
+    credentials: true
 }));
 
 
