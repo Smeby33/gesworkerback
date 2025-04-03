@@ -50,39 +50,36 @@ router.post('/addUser', async (req, res) => {
 
     try {
         const { id, username, email, password, is_admin, company_name, profile_picture } = req.body;
-        const mdp =id.password
-        const identifiant =id.id
 
-        // Vérifier si les champs obligatoires sont fournis
-        if (!id || !username || !email) {
-            console.log("❌ Erreur - Champs obligatoires manquants");
-            return res.status(400).json({ error: "ID, username et email sont requis." });
-        }
+
+        // // Vérifier si les champs obligatoires sont fournis
+        // if (!id || !username || !email) {
+        //     console.log("❌ Erreur - Champs obligatoires manquants");
+        //     return res.status(400).json({ error: "ID, username et email sont requis." });
+        // }
 
         // Vérification du mot de passe pour les admins
-        let hashedPassword = null;
-        if (is_admin) {
-            if (!mdp) {
-                console.log("❌ Erreur - Un mot de passe est requis pour les administrateurs");
-                return res.status(400).json({ error: "Le mot de passe est obligatoire pour un administrateur." });
-            }
-            hashedPassword = await bcrypt.hash(mdp, 10);
-        }
+        // let hashedPassword = null;
+        // if (is_admin) {
+        //     if (!mdp) {
+        //         console.log("❌ Erreur - Un mot de passe est requis pour les administrateurs");
+        //         return res.status(400).json({ error: "Le mot de passe est obligatoire pour un administrateur." });
+        //     }
+        //     hashedPassword = await bcrypt.hash(mdp, 10);
+        // }
 
         // Exécution de la requête SQL
         const query = `
             INSERT INTO users (id, name, email, password, is_admin, company_name, profile_picture)
-            VALUES (?, ?, ?, ?, ?, ?, NULL)
+            VALUES (?, ?, ?, NULL, ?, ?, NULL)
         `;
 
         const values = [
-            identifiant,
+            id,
             username,
-            email,
-            hashedPassword, // null si ce n'est pas un admin
+            email, // null si ce n'est pas un admin
             is_admin || 0,
-            company_name || null,
-            profile_picture || null
+            company_name || null
         ];
 
         const [result] = await db.query(query, values);
