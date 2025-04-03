@@ -49,10 +49,10 @@ router.post('/addUser', async (req, res) => {
     console.log("🚀 Requête reçue :", req.body);
 
     try {
-        const { id, name, email, password, is_admin, company_name, profile_picture } = req.body;
+        const { id, username, email, password, is_admin, company_name, profile_picture } = req.body;
 
         // Vérifier si les champs obligatoires sont fournis
-        if (!id || !name || !email) {
+        if (!id || !username || !email) {
             console.log("❌ Erreur - Champs obligatoires manquants");
             return res.status(400).json({ error: "ID, username et email sont requis." });
         }
@@ -75,7 +75,7 @@ router.post('/addUser', async (req, res) => {
 
         const values = [
             id,
-            name,
+            username,
             email,
             hashedPassword, // null si ce n'est pas un admin
             is_admin || 0,
