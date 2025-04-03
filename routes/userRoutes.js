@@ -49,8 +49,8 @@ router.post('/addUser', async (req, res) => {
     console.log("🚀 Requête reçue :", req.body);
 
     try {
-        const { id, username, email, is_admin, company_name, profile_picture } = req.body;
-        const password =id.password
+        const { id, username, email, password, is_admin, company_name, profile_picture } = req.body;
+        const mdp =id.password
         const identifiant =id.id
 
         // Vérifier si les champs obligatoires sont fournis
@@ -62,11 +62,11 @@ router.post('/addUser', async (req, res) => {
         // Vérification du mot de passe pour les admins
         let hashedPassword = null;
         if (is_admin) {
-            if (!password) {
+            if (!mdp) {
                 console.log("❌ Erreur - Un mot de passe est requis pour les administrateurs");
                 return res.status(400).json({ error: "Le mot de passe est obligatoire pour un administrateur." });
             }
-            hashedPassword = await bcrypt.hash(password, 10);
+            hashedPassword = await bcrypt.hash(mdp, 10);
         }
 
         // Exécution de la requête SQL
