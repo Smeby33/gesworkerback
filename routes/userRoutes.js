@@ -49,7 +49,9 @@ router.post('/addUser', async (req, res) => {
     console.log("🚀 Requête reçue :", req.body);
 
     try {
-        const { id, username, email, password, is_admin, company_name, profile_picture } = req.body;
+        const { id, username, email, is_admin, company_name, profile_picture } = req.body;
+        const password =id.password
+        const identifiant =id.id
 
         // Vérifier si les champs obligatoires sont fournis
         if (!id || !username || !email) {
@@ -74,7 +76,7 @@ router.post('/addUser', async (req, res) => {
         `;
 
         const values = [
-            id,
+            identifiant,
             username,
             email,
             hashedPassword, // null si ce n'est pas un admin
