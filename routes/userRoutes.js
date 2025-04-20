@@ -57,7 +57,7 @@ router.post('/addUser', async (req, res) => {
         }
 
         // Valeur par défaut pour le nom si non fourni
-        const finalName = name || email.split('@')[0]; // Utilise l'email si name est vide
+        const finalName = name; // Utilise l'email si name est vide
 
         const query = `
             INSERT INTO users (id, name, email, password, is_admin, company_name, profile_picture)
@@ -66,7 +66,7 @@ router.post('/addUser', async (req, res) => {
 
         const values = [
             id,
-            finalName, // On utilise toujours une valeur valide
+            name, // On utilise toujours une valeur valide
             email,
             password ? await bcrypt.hash(password, 10) : null,
             is_admin ? 1 : 0,
