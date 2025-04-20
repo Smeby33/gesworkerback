@@ -76,7 +76,7 @@ router.post('/addUser', async (req, res) => {
 
         const values = [
             id,
-            username,
+            name,
             email, // null si ce n'est pas un admin
             is_admin || 0,
             company_name || null
