@@ -49,49 +49,48 @@ router.post('/addUser', async (req, res) => {
     console.log("🚀 Requête reçue :", req.body);
 
     try {
-        const { id, name, email, password, is_admin, company_name, profile_picture } = req.body;
+        const { id, name, email, password, is_admin, company_name } = req.body;
 
+        // Validation renforcée
+        if (!id || !email) {
+            return res.status(400).json({ error: "ID et email sont obligatoires" });
+        }
 
-        // // Vérifier si les champs obligatoires sont fournis
-        // if (!id || !username || !email) {
-        //     console.log("❌ Erreur - Champs obligatoires manquants");
-        //     return res.status(400).json({ error: "ID, username et email sont requis." });
-        // }
+        // Valeur par défaut pour le nom si non fourni
+        const finalName = name || email.split('@')[0]; // Utilise l'email si name est vide
 
-        // Vérification du mot de passe pour les admins
-        // let hashedPassword = null;
-        // if (is_admin) {
-        //     if (!mdp) {
-        //         console.log("❌ Erreur - Un mot de passe est requis pour les administrateurs");
-        //         return res.status(400).json({ error: "Le mot de passe est obligatoire pour un administrateur." });
-        //     }
-        //     hashedPassword = await bcrypt.hash(mdp, 10);
-        // }
-
-        // Exécution de la requête SQL
         const query = `
             INSERT INTO users (id, name, email, password, is_admin, company_name, profile_picture)
-            VALUES (?, ?, ?, NULL, ?, ?, NULL)
+            VALUES (?, ?, ?, ?, ?, ?, NULL)
         `;
 
         const values = [
             id,
-            name,
-            email, // null si ce n'est pas un admin
-            is_admin || 0,
+            finalName, // On utilise toujours une valeur valide
+            email,
+            password ? await bcrypt.hash(password, 10) : null,
+            is_admin ? 1 : 0,
             company_name || null
         ];
 
         const [result] = await db.query(query, values);
 
-        console.log("✅ Utilisateur ajouté avec succès :", result.insertId);
-        res.status(201).json({ message: "Utilisateur ajouté avec succès", id: result.insertId });
+        console.log("✅ Utilisateur ajouté. ID:", id, "Nom:", finalName);
+        res.status(201).json({ 
+            success: true,
+            message: "Utilisateur ajouté avec succès",
+            userId: id
+        });
 
     } catch (error) {
-        console.error("❌ Erreur serveur :", error);
-        res.status(500).json({ error: "Erreur interne du serveur." });
+        console.error("❌ Erreur serveur:", error);
+        res.status(500).json({ 
+            error: "Erreur interne du serveur",
+            details: error.sqlMessage || error.message
+        });
     }
 });
+
 
 router.get('/getProfilePicture/:userId', async (req, res) => {
     const { userId } = req.params;
