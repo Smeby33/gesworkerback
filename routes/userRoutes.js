@@ -49,7 +49,7 @@ router.post('/addUser', async (req, res) => {
     console.log("🚀 Requête reçue :", req.body);
 
     try {
-        const { id, username, email, password, is_admin, company_name, profile_picture } = req.body;
+        const { id, name, email, password, is_admin, company_name, profile_picture } = req.body;
 
 
         // // Vérifier si les champs obligatoires sont fournis
