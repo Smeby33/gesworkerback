@@ -18,33 +18,75 @@ router.get('/user', (req, res) => {
 
 
 //  Récupérer un utilisateur par son ID (varchar)
-router.get('/getUser/:id', async (req, res) => {
+// Middleware de validation d'ID
+const validateUserId = (req, res, next) => {
     const userId = req.params.id;
-if (!userId) {
-    return res.status(400).json({ error: "ID utilisateur invalide" });
-}
-    console.log("🔍 ID utilisateur :", userId);
-    console.log("🔍 Début de la requête pour l'ID :", userId);
+    if (!userId || userId.length !== 28) { // Exemple de validation
+        return res.status(400).json({ 
+            error: "ID utilisateur invalide",
+            details: "L'ID doit faire 28 caractères" 
+        });
+    }
+    next();
+};
 
-    const query = 'SELECT id, name, email,password,company_name, is_admin,profile_picture FROM users WHERE id = ? LIMIT 1';
+// Récupérer un utilisateur par son ID (version optimisée)
+router.get('/getUser/:id', validateUserId, async (req, res) => {
+    const userId = req.params.id;
+    let connection;
 
     try {
-        // Utilisation de async/await avec pool de connexion
-        const [results] = await db.query(query, [userId]);
-        console.log("✅ Résultat SQL :", results);
-
-        if (results.length === 0) {
-            return res.status(404).json({ message: "Utilisateur non trouvé" });
+        // 1. Tentative de récupération depuis le cache
+        const cachedUser = await cache.get(`user:${userId}`);
+        if (cachedUser) {
+            console.debug("Cache hit for user", userId);
+            return res.json(JSON.parse(cachedUser));
         }
 
-        res.status(200).json(results[0]); // Renvoie l'utilisateur trouvé
-        console.log(" Réponse envoyée :", results[0]);
+        // 2. Acquisition d'une connexion avec timeout
+        connection = await db.getConnection();
+        
+        // 3. Exécution de la requête avec timeout
+        const [results] = await connection.query({
+            sql: 'SELECT id, name, email, company_name, is_admin, profile_picture FROM users WHERE id = ? LIMIT 1',
+            timeout: 10000, // 10 secondes timeout
+            values: [userId]
+        });
+
+        if (results.length === 0) {
+            return res.status(404).json({ 
+                error: "Utilisateur non trouvé",
+                userId: userId
+            });
+        }
+
+        const userData = results[0];
+        
+        // 4. Mise en cache pour 1 heure
+        await cache.set(`user:${userId}`, JSON.stringify(userData), 'EX', 3600);
+        
+        // 5. Réponse
+        res.json(userData);
+        
     } catch (err) {
-        console.error(" Erreur SQL :", err);
-        res.status(500).json({ error: "Une erreur interne est survenue." });
+        console.error("Erreur sur getUser:", {
+            userId,
+            error: err.message,
+            stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+        });
+
+        const statusCode = err.code === 'ETIMEDOUT' ? 504 : 500;
+        res.status(statusCode).json({ 
+            error: err.code === 'ETIMEDOUT' 
+                ? "Timeout de la base de données" 
+                : "Erreur interne du serveur",
+            requestId: req.requestId // À implémenter avec un middleware
+        });
+    } finally {
+        // 6. Libération systématique de la connexion
+        if (connection) connection.release();
     }
 });
-
 
 
 
