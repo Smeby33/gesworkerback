@@ -32,42 +32,62 @@ const validateUserId = (req, res, next) => {
 
 // Récupérer un utilisateur par son ID (version optimisée)
 // Récupérer un utilisateur (version sans cache)
-router.get('/getUser/:id', async (req, res) => {
-    const userId = req.params.id;
-    
-    if (!userId) {
-        return res.status(400).json({ error: "ID utilisateur invalide" });
-    }
+router.get('/recupererun/:id', async (req, res) => {
+    const intervenantId = req.params.id;
+    let connection;
 
-    console.log("🔍 ID utilisateur :", userId);
-
-    try {
-        const query = `
-            SELECT id, name, email, company_name, is_admin, profile_picture 
-            FROM users 
-            WHERE id = ? 
-            LIMIT 1
-        `;
-
-        const [results] = await db.query(query, [userId]);
-        
-        if (results.length === 0) {
-            return res.status(404).json({ message: "Utilisateur non trouvé" });
-        }
-
-        res.status(200).json(results[0]);
-
-    } catch (err) {
-        console.error("❌ Erreur :", err);
-        const statusCode = err.code === 'ETIMEDOUT' ? 504 : 500;
-        res.status(statusCode).json({ 
-            error: err.code === 'ETIMEDOUT' 
-                ? "La base de données ne répond pas" 
-                : "Erreur interne du serveur"
+    if (!intervenantId || intervenantId.length !== 28) {
+        return res.status(400).json({ 
+            error: "ID intervenant invalide",
+            details: "L'ID doit contenir 28 caractères"
         });
     }
-});
 
+    try {
+        connection = await db.getConnection();
+        
+        // Requête avec timeout explicite
+        const [results] = await connection.query({
+            sql: `SELECT id, nom, prenom, email, specialite 
+                  FROM intervenants 
+                  WHERE id = ? 
+                  LIMIT 1`,
+            timeout: 10000, // 10 secondes timeout
+            values: [intervenantId]
+        });
+
+        if (results.length === 0) {
+            return res.status(404).json({ 
+                error: "Intervenant non trouvé",
+                intervenantId
+            });
+        }
+
+        res.json(results[0]);
+
+    } catch (err) {
+        // Journalisation détaillée
+        logError(err, {
+            route: '/intervenants/recupererun',
+            intervenantId,
+            userId: req.user?.id
+        });
+
+        // Réponse adaptée au type d'erreur
+        const statusCode = err.code === 'ETIMEDOUT' ? 504 : 500;
+        const errorMessage = err.code === 'ETIMEDOUT'
+            ? "La base de données ne répond pas"
+            : "Erreur interne du serveur";
+
+        res.status(statusCode).json({ 
+            error: errorMessage,
+            requestId: req.requestId
+        });
+
+    } finally {
+        if (connection) connection.release();
+    }
+});
 //  Ajouter un utilisateur
 router.post('/addUser', async (req, res) => {
     console.log("🚀 Requête reçue :", req.body);
