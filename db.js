@@ -10,6 +10,8 @@ const db = mysql.createPool({
     database: process.env.DB_NAME,
     waitForConnections: true,
     connectionLimit: 10,  // Limite de connexions simultanées
+    connectTimeout: 10000, // Temps en ms
+    acquireTimeout: 20000,
     queueLimit: 0
 });
 
