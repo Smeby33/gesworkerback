@@ -20,6 +20,10 @@ router.get('/user', (req, res) => {
 //  Récupérer un utilisateur par son ID (varchar)
 router.get('/getUser/:id', async (req, res) => {
     const userId = req.params.id;
+if (!userId) {
+    return res.status(400).json({ error: "ID utilisateur invalide" });
+}
+    console.log("🔍 ID utilisateur :", userId);
     console.log("🔍 Début de la requête pour l'ID :", userId);
 
     const query = 'SELECT id, name, email,password,company_name, is_admin,profile_picture FROM users WHERE id = ? LIMIT 1';
