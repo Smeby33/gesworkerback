@@ -6,7 +6,7 @@ const router = express.Router();
 
 // 📌 Récupérer un utilisateurs
 router.get('/user', (req, res) => {
-    db.query('SELECT id, username, is_admin, company_name, profile_picture FROM users', (err, results) => {
+    db.query('SELECT * FROM users', (err, results) => {
         if (err) {
             console.error("Erreur SQL :", err); // Garder le détail dans le serveur
             return res.status(500).json({ error: "Erreur interne du serveur." });
@@ -18,123 +18,81 @@ router.get('/user', (req, res) => {
 
 
 //  Récupérer un utilisateur par son ID (varchar)
-// Middleware de validation d'ID
-const validateUserId = (req, res, next) => {
+router.get('/getUser/:id', async (req, res) => {
     const userId = req.params.id;
-    if (!userId || userId.length !== 28) { // Exemple de validation
-        return res.status(400).json({ 
-            error: "ID utilisateur invalide",
-            details: "L'ID doit faire 28 caractères" 
-        });
-    }
-    next();
-};
+    console.log("🔍 Début de la requête pour l'ID :", userId);
 
-// Récupérer un utilisateur par son ID (version optimisée)
-// Récupérer un utilisateur (version sans cache)
-router.get('/recupererun/:id', async (req, res) => {
-    const intervenantId = req.params.id;
-    let connection;
-
-    if (!intervenantId || intervenantId.length !== 28) {
-        return res.status(400).json({ 
-            error: "ID intervenant invalide",
-            details: "L'ID doit contenir 28 caractères"
-        });
-    }
+    const query = 'SELECT id, name, email,password,company_name, is_admin,profile_picture FROM users WHERE id = ? LIMIT 1';
 
     try {
-        connection = await db.getConnection();
-        
-        // Requête avec timeout explicite
-        const [results] = await connection.query({
-            sql: `SELECT id, nom, prenom, email, specialite 
-                  FROM intervenants 
-                  WHERE id = ? 
-                  LIMIT 1`,
-            timeout: 10000, // 10 secondes timeout
-            values: [intervenantId]
-        });
+        // Utilisation de async/await avec pool de connexion
+        const [results] = await db.query(query, [userId]);
+        console.log("✅ Résultat SQL :", results);
 
         if (results.length === 0) {
-            return res.status(404).json({ 
-                error: "Intervenant non trouvé",
-                intervenantId
-            });
+            return res.status(404).json({ message: "Utilisateur non trouvé" });
         }
 
-        res.json(results[0]);
-
+        res.status(200).json(results[0]); // Renvoie l'utilisateur trouvé
+        console.log(" Réponse envoyée :", results[0]);
     } catch (err) {
-        // Journalisation détaillée
-        logError(err, {
-            route: '/intervenants/recupererun',
-            intervenantId,
-            userId: req.user?.id
-        });
-
-        // Réponse adaptée au type d'erreur
-        const statusCode = err.code === 'ETIMEDOUT' ? 504 : 500;
-        const errorMessage = err.code === 'ETIMEDOUT'
-            ? "La base de données ne répond pas"
-            : "Erreur interne du serveur";
-
-        res.status(statusCode).json({ 
-            error: errorMessage,
-            requestId: req.requestId
-        });
-
-    } finally {
-        if (connection) connection.release();
+        console.error(" Erreur SQL :", err);
+        res.status(500).json({ error: "Une erreur interne est survenue." });
     }
 });
+
+
+
+
 //  Ajouter un utilisateur
 router.post('/addUser', async (req, res) => {
     console.log("🚀 Requête reçue :", req.body);
 
     try {
-        const { id, name, email, password, is_admin, company_name } = req.body;
+        const { id, name, email, password, is_admin, company_name, profile_picture } = req.body;
 
-        // Validation renforcée
-        if (!id || !email) {
-            return res.status(400).json({ error: "ID et email sont obligatoires" });
+        // Vérifier si les champs obligatoires sont fournis
+        if (!id || !name || !email) {
+            console.log("❌ Erreur - Champs obligatoires manquants");
+            return res.status(400).json({ error: "ID, username et email sont requis." });
         }
 
-        // Valeur par défaut pour le nom si non fourni
-        const finalName = name; // Utilise l'email si name est vide
+        // Vérification du mot de passe pour les admins
+        let hashedPassword = null;
+        if (is_admin) {
+            if (!password) {
+                console.log("❌ Erreur - Un mot de passe est requis pour les administrateurs");
+                return res.status(400).json({ error: "Le mot de passe est obligatoire pour un administrateur." });
+            }
+            hashedPassword = await bcrypt.hash(password, 10);
+        }
 
+        // Exécution de la requête SQL
         const query = `
             INSERT INTO users (id, name, email, password, is_admin, company_name, profile_picture)
-            VALUES (?, ?, ?, ?, ?, ?, NULL)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
         `;
 
         const values = [
             id,
-            name, // On utilise toujours une valeur valide
+            name,
             email,
-            password ? await bcrypt.hash(password, 10) : null,
-            is_admin ? 1 : 0,
-            company_name || null
+            hashedPassword, // null si ce n'est pas un admin
+            is_admin || 0,
+            company_name || null,
+            profile_picture || null
         ];
 
         const [result] = await db.query(query, values);
 
-        console.log("✅ Utilisateur ajouté. ID:", id, "Nom:", finalName);
-        res.status(201).json({ 
-            success: true,
-            message: "Utilisateur ajouté avec succès",
-            userId: id
-        });
+        console.log("✅ Utilisateur ajouté avec succès :", result.insertId);
+        res.status(201).json({ message: "Utilisateur ajouté avec succès", id: result.insertId });
 
     } catch (error) {
-        console.error("❌ Erreur serveur:", error);
-        res.status(500).json({ 
-            error: "Erreur interne du serveur",
-            details: error.sqlMessage || error.message
-        });
+        console.error("❌ Erreur serveur :", error);
+        res.status(500).json({ error: "Erreur interne du serveur." });
     }
 });
-
 
 router.get('/getProfilePicture/:userId', async (req, res) => {
     const { userId } = req.params;

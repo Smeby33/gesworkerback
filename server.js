@@ -22,12 +22,8 @@ app.use((req, res, next) => {
 
 app.use(express.json());
 app.use(cors({
-    origin: ['http://localhost:3000', 'https://gesworker.vercel.app'],
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization']
+    origin: ['http://localhost:3000', 'https://gesworker.vercel.app']
 }));
-app.options('*', cors()); // Autoriser les requêtes préflight sur toutes les routes
-
 
 
  
