@@ -31,8 +31,7 @@ const db = mysql.createPool({
             message: err.message,
             code: err.code,
             stack: err.stack
-        });
-        process.exit(1); // Quitte l'application si la DB n'est pas disponible
+        })
     }
 })();
 
